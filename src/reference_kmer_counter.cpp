@@ -53,21 +53,28 @@ int main(int argc, char **argv) {
         for(size_t i = 0; i < seq->seq.l; i += bin_size) {
             uint64_t current_bin_total = 0;
             uint64_t count_0 = 0;
+            uint64_t count_n_kmer = 0;
             
             size_t max_idx = i + bin_size;
+            
+            int32_t last_n_pos = -1;
             if(max_idx >= seq->seq.l) max_idx = seq->seq.l;
             for(size_t j = i; j < max_idx; j++) {
-                kmer_object->from_string_impl(current_sequence.begin() + j, k);
-                uint64_t counter;
-                if(kmc_database.CheckKmer(*kmer_object, counter)) {
-                    current_bin_total += counter;
-                } else {
-                    count_0++;
+                if(current_sequence[j] == 'N' || current_sequence[j] == 'n') last_n_pos = j;
+                if((last_n_pos == -1 && j - i >= k) || j - last_n_pos >= k) {                 
+                    kmer_object->from_string_impl(current_sequence.begin() + j, k);
+                    uint64_t counter;
+                    if(kmc_database.CheckKmer(*kmer_object, counter)) {
+                        current_bin_total += counter;
+                    } else {
+                        count_0++;
+                    }
                 }
+                if(j - last_n_pos < k) count_n_kmer += 1;
             }
             
             uint64_t num_bases = max_idx - i;
-            output << seq->name.s << "\t" << i << "\t" << max_idx << "\t" << current_bin_total << "\t" << num_bases << "\t" << double_t(current_bin_total)/double_t(num_bases) << "\t" << count_0 << "\n";
+            output << seq->name.s << "\t" << i << "\t" << max_idx << "\t" << current_bin_total << "\t" << num_bases << "\t" << double_t(current_bin_total)/double_t(num_bases) << "\t" << count_0 << "\t" << count_n_kmer << "\n";
         }
     }
     

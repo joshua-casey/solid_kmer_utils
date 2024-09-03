@@ -37,3 +37,4 @@ The output `test_out.tsv` will be of the format:
 | 5 | total_base | Total bases in bin (i.e. bin_end - bin_start) |
 | 6 | average | Average frequency of kmers (i.e. total_freq / total_base) |
 | 7 | count_0 | Number of kmers in bin with frequency 0 |
+| 8 | count_N | Number of kmers with "N" |
