@@ -26,7 +26,7 @@ Note that minimum, maximum kmer count, and the statistics will obey the KMC coun
 
 For example:
 ```
-./reference_kmer_counter kmc_result.res chm13.draft_v1.1.fasta test_out.tsv 10000
+./reference_kmer_counter kmc_result.res chm13.draft_v1.1.fasta test_out.tsv 10000 2 200
 ```
 
 The output `test_out.tsv` will be of the format:
