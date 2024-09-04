@@ -3,6 +3,7 @@
 #include <iostream>
 #include <fstream>
 #include <string>
+#include <algorithm>
 #include <zlib.h>
 #include <htslib/kseq.h>
 #include <htslib/kstring.h>
@@ -58,23 +59,91 @@ int main(int argc, char **argv) {
             size_t max_idx = i + bin_size;
             
             int32_t last_n_pos = -1;
+            
+            std::vector<uint64_t> current_frequencies;
+            std::vector<uint64_t> current_frequencies_excluding_0;
+            
             if(max_idx >= seq->seq.l) max_idx = seq->seq.l;
             for(size_t j = i; j < max_idx; j++) {
                 if(current_sequence[j] == 'N' || current_sequence[j] == 'n') last_n_pos = j;
-                if((last_n_pos == -1 && j - i >= k) || j - last_n_pos >= k) {                 
+                if(j - i >= k && (last_n_pos == -1 || j - last_n_pos >= k)) {                 
                     kmer_object->from_string_impl(current_sequence.begin() + j, k);
                     uint64_t counter;
                     if(kmc_database.CheckKmer(*kmer_object, counter)) {
                         current_bin_total += counter;
+                        current_frequencies.push_back(counter);
+                        current_frequencies_excluding_0.push_back(counter);
                     } else {
                         count_0++;
+                        current_frequencies.push_back(0);
                     }
                 }
                 if(j - last_n_pos < k) count_n_kmer += 1;
             }
             
-            uint64_t num_bases = max_idx - i;
-            output << seq->name.s << "\t" << i << "\t" << max_idx << "\t" << current_bin_total << "\t" << num_bases << "\t" << double_t(current_bin_total)/double_t(num_bases) << "\t" << count_0 << "\t" << count_n_kmer << "\n";
+            if(current_frequencies.size() > 0) {
+                std::sort(current_frequencies.begin(), current_frequencies.end());
+                
+                uint64_t current_number = current_frequencies[0];
+                size_t current_count = 1;
+                uint64_t current_mode = current_number;
+                size_t current_highest = current_count;
+                for(size_t j = 1; j < current_frequencies.size(); j++) {
+                    if(current_frequencies[j] == current_number) current_count++;
+                    else {
+                        if(current_count > current_highest) {
+                            current_highest = current_count;
+                            current_mode = current_number;
+                        }
+                        current_number = current_frequencies[j];
+                        current_count = 1;
+                    }
+                }
+                if(current_count > current_highest) {
+                    current_highest = current_count;
+                    current_mode = current_number;
+                }
+                
+                uint64_t mode = current_mode;
+                uint64_t median;
+                if(current_frequencies.size() & 1) median = current_frequencies[current_frequencies.size() / 2];
+                else if(current_frequencies.size() > 0) median = (current_frequencies[current_frequencies.size() / 2] + current_frequencies[current_frequencies.size() / 2 - 1]) / 2;
+                
+                if(current_frequencies_excluding_0.size() == 0) output << seq->name.s << "\t" << i << "\t" << max_idx << "\t" << current_bin_total << "\t" << current_frequencies.size() << "\t" << double_t(current_bin_total)/double_t(current_frequencies.size()) << "\t" << mode << "\t" << median << "\t" << count_0 << "\t" << 0 << "\t" << -1 << "\t" << -1 << "\t" << -1 << "\t" << count_n_kmer << "\n";
+                else {
+                    std::sort(current_frequencies_excluding_0.begin(), current_frequencies_excluding_0.end());
+                
+                    current_number = current_frequencies_excluding_0[0];
+                    current_count = 1;
+                    current_mode = current_number;
+                    current_highest = current_count;
+                    for(size_t j = 1; j < current_frequencies_excluding_0.size(); j++) {
+                        if(current_frequencies_excluding_0[j] == current_number) current_count++;
+                        else {
+                            if(current_count > current_highest) {
+                                current_highest = current_count;
+                                current_mode = current_number;
+                            }
+                            current_number = current_frequencies_excluding_0[j];
+                            current_count = 1;
+                        }
+                    }
+                    if(current_count > current_highest) {
+                        current_highest = current_count;
+                        current_mode = current_number;
+                    }
+                    
+                    uint64_t mode_excluding_0 = current_mode;
+                    uint64_t median_excluding_0;
+                    if(current_frequencies_excluding_0.size() & 1) median_excluding_0 = current_frequencies_excluding_0[current_frequencies_excluding_0.size() / 2];
+                    else if(current_frequencies_excluding_0.size() > 0) median_excluding_0 = (current_frequencies_excluding_0[current_frequencies_excluding_0.size() / 2] + current_frequencies_excluding_0[current_frequencies_excluding_0.size() / 2 - 1]) / 2;
+                    
+                    output << seq->name.s << "\t" << i << "\t" << max_idx << "\t" << current_bin_total << "\t" << current_frequencies.size() << "\t" << double_t(current_bin_total)/double_t(current_frequencies.size()) << "\t" << mode << "\t" << median << "\t" << count_0 << "\t" << current_frequencies_excluding_0.size() << "\t" << double_t(current_bin_total)/double_t(current_frequencies_excluding_0.size()) << "\t" << mode_excluding_0 << "\t" << median_excluding_0 << "\t" << count_n_kmer << "\n";
+                }
+            } else {
+                uint64_t num_bases = max_idx - i;
+                output << seq->name.s << "\t" << i << "\t" << max_idx << "\t" << 0 << "\t" << 0 << "\t" << -1 << "\t" << -1 << "\t" << -1 << "\t" << count_0 << "\t" << 0 << "\t" << -1 << "\t" << -1 << "\t" << -1 << "\t" << count_n_kmer << "\n";
+            }
         }
     }
     
