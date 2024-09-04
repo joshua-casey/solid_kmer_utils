@@ -66,7 +66,7 @@ int main(int argc, char **argv) {
             if(max_idx >= seq->seq.l) max_idx = seq->seq.l;
             for(size_t j = i; j < max_idx; j++) {
                 if(current_sequence[j] == 'N' || current_sequence[j] == 'n') last_n_pos = j;
-                if(j - i >= k && (last_n_pos == -1 || j - last_n_pos >= k)) {                 
+                if(j - i >= k && (last_n_pos == -1 || j - last_n_pos >= k)) {
                     kmer_object->from_string_impl(current_sequence.begin() + j, k);
                     uint64_t counter;
                     if(kmc_database.CheckKmer(*kmer_object, counter)) {
@@ -74,8 +74,15 @@ int main(int argc, char **argv) {
                         current_frequencies.push_back(counter);
                         current_frequencies_excluding_0.push_back(counter);
                     } else {
-                        count_0++;
-                        current_frequencies.push_back(0);
+                        kmer_object->reverse();
+                        if(kmc_database.CheckKmer(*kmer_object, counter)) {
+                            current_bin_total += counter;
+                            current_frequencies.push_back(counter);
+                            current_frequencies_excluding_0.push_back(counter);
+                        }  else {
+                            count_0++;
+                            current_frequencies.push_back(0);
+                        }
                     }
                 }
                 if(j - last_n_pos < k) count_n_kmer += 1;
