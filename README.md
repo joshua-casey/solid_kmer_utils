@@ -20,13 +20,13 @@ This will output two files `kmc_result.res.kmc_pre` and `kmc_result.res.kmc_suf`
 
 Then, run the compiled program
 ```
-./reference_kmer_counter <kmc database path> <sequence file to scan> <output tsv file> <bin size> <min kmer count> <max kmer count>
+./reference_kmer_counter <kmc database path> <sequence file to scan> <output tsv file> <bin size> <min kmer count> <max kmer count> <histogram output file>
 ```
 Note that minimum, maximum kmer count, and the statistics will obey the KMC counters, i.e. set -ci, -cs, and -cx accordingly.
 
 For example:
 ```
-./reference_kmer_counter kmc_result.res chm13.draft_v1.1.fasta test_out.tsv 10000
+./reference_kmer_counter kmc_result.res chm13.draft_v1.1.fasta test_out.tsv 10000 2 200 hist_out.tsv
 ```
 
 The output `test_out.tsv` will be of the format:
@@ -43,3 +43,11 @@ The output `test_out.tsv` will be of the format:
 | 9 | count_N | Number of kmers with "N" |
 | 10 | below_min | Number of kmers with frequencies below the specified minimum frequency |
 | 11 | above_max | Number of kmers with frequencies above the specified maximum frequency |
+
+The output `hist_out.tsv` will be of the format:
+| Column no  | Name | Description  |
+|---|---|---|
+| 1 | seq_name | Sequence name   |
+| 2 | bin_start | Bin start (0 based, inclusive) |
+| 3 | bin_end | Bin end (0 based, exclusive)  |
+| 4+ | histogram value | Number of kmers with specific frequency, column no 4 will represent kmers with min_kmer_count, column no 5 kmers with min_kmer_count+1, etc. |

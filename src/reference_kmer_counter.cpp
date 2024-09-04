@@ -10,8 +10,8 @@
 KSEQ_INIT(gzFile, gzread)
 
 int main(int argc, char **argv) {   
-    if(argc < 5) {
-        std::cerr << "Usage: " << argv[0] << " <KMC database path> <Reference path> <Output file> <Bin size> <min kmer count> <max kmer count>" << std::endl;
+    if(argc < 8) {
+        std::cerr << "Usage: " << argv[0] << " <KMC database path> <Reference path> <Output file> <Bin size> <min kmer count> <max kmer count> <Histogram output file>" << std::endl;
         return 1;
     }
     
@@ -24,6 +24,7 @@ int main(int argc, char **argv) {
     
     std::cout << "Reading sequences from: " << argv[2] << std::endl;
     std::cout << "Outputting to: " << argv[3] << std::endl;
+    std::cout << "Outputting histogram to: " << argv[7] << std::endl;
     size_t bin_size = (size_t)atoi(argv[4]);
     std::cout << "Bin size: " << bin_size << std::endl;
     
@@ -49,6 +50,9 @@ int main(int argc, char **argv) {
     std::ofstream output;
     output.open(argv[3]);
     
+    std::ofstream histogram_output;
+    histogram_output.open(argv[7]);
+    
     
     while((l = kseq_read(seq)) >= 0) {
         std::cerr << "Processing: " << seq->name.s << std::endl;
@@ -66,6 +70,7 @@ int main(int argc, char **argv) {
             int32_t last_n_pos = -1;
             
             std::vector<uint64_t> current_frequencies;
+            std::vector<uint64_t> freq_histogram(max_counter - min_counter + 1);
             
             if(max_idx >= seq->seq.l) max_idx = seq->seq.l;
             for(size_t j = i; j < max_idx; j++) {
@@ -118,20 +123,29 @@ int main(int argc, char **argv) {
                     current_mode = current_number;
                 }
                 
+                for(size_t j = 0; j < current_frequencies.size(); j++) freq_histogram[current_frequencies[j] - min_counter]++;
+                
                 uint64_t mode = current_mode;
                 uint64_t median;
                 if(current_frequencies.size() & 1) median = current_frequencies[current_frequencies.size() / 2];
                 else if(current_frequencies.size() > 0) median = (current_frequencies[current_frequencies.size() / 2] + current_frequencies[current_frequencies.size() / 2 - 1]) / 2;
                 
                 output << seq->name.s << "\t" << i << "\t" << max_idx << "\t" << current_bin_total << "\t" << current_frequencies.size() << "\t" << double_t(current_bin_total)/double_t(current_frequencies.size()) << "\t" << mode << "\t" << median << "\t" << count_n_kmer << "\t" << count_below_min << "\t" << count_above_max << "\n";
+                histogram_output << seq->name.s << "\t" << i << "\t" << max_idx;
+                for(uint64_t j = 0; j < freq_histogram.size(); j++) histogram_output << "\t" << freq_histogram[j];
+                histogram_output << "\n";
             } else {
                 uint64_t num_bases = max_idx - i;
                 output << seq->name.s << "\t" << i << "\t" << max_idx << "\t" << 0 << "\t" << 0 << "\t" << -1 << "\t" << -1 << "\t" << -1 << "\t" << count_n_kmer << "\t" << count_below_min << "\t" << count_above_max << "\n";
+                
+                histogram_output << seq->name.s << "\t" << i << "\t" << max_idx;
+                for(uint64_t j = 0; j < freq_histogram.size(); j++) histogram_output << "\t" << freq_histogram[j];
+                histogram_output << "\n";
             }
         }
     }
     
     output.close();
-    
+    histogram_output.close();
     return 0;
 }
