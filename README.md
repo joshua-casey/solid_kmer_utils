@@ -20,8 +20,9 @@ This will output two files `kmc_result.res.kmc_pre` and `kmc_result.res.kmc_suf`
 
 Then, run the compiled program
 ```
-./reference_kmer_counter <kmc database path> <sequence file to scan> <output tsv file> <bin size>
+./reference_kmer_counter <kmc database path> <sequence file to scan> <output tsv file> <bin size> <min kmer count> <max kmer count>
 ```
+Note that minimum, maximum kmer count, and the statistics will obey the KMC counters, i.e. set -ci, -cs, and -cx accordingly.
 
 For example:
 ```
@@ -39,9 +40,6 @@ The output `test_out.tsv` will be of the format:
 | 6 | average | Average frequency of kmers (i.e. total_freq / total_kmer). (if empty bin, i.e. all Ns: -1) |
 | 7 | mode | Mode of the kmer frequncies (if empty bin, i.e. all Ns: -1) |
 | 8 | median | Median of the kmer frequencies (if empty bin, i.e. all Ns: -1) |
-| 9 | count_0 | Number of kmers in bin with frequency 0 |
-| 10 | count_non_0 | Number of kmers in bin with frequency > 0 |
-| 11 | average_excl_0 | Average frequency of kmers, excluding 0-frequency (i.e. total_freq / count_non_0) (if empty bin, i.e. all Ns: -1) |
-| 12 | mode_excl_0 | Mode of the kmer frequncies, excluding 0-frequency (if empty bin, i.e. all Ns: -1) |
-| 13 | median_excl_0 | Median of the kmer frequencies, excluding 0-frequency (if empty bin, i.e. all Ns: -1) |
-| 14 | count_N | Number of kmers with "N" |
+| 9 | count_N | Number of kmers with "N" |
+| 10 | below_min | Number of kmers with frequencies below the specified minimum frequency |
+| 11 | above_max | Number of kmers with frequencies above the specified maximum frequency |

@@ -11,7 +11,7 @@ KSEQ_INIT(gzFile, gzread)
 
 int main(int argc, char **argv) {   
     if(argc < 5) {
-        std::cerr << "Usage: " << argv[0] << " <KMC database path> <Reference path> <Output file> <Bin size>" << std::endl;
+        std::cerr << "Usage: " << argv[0] << " <KMC database path> <Reference path> <Output file> <Bin size> <min kmer count> <max kmer count>" << std::endl;
         return 1;
     }
     
@@ -26,6 +26,10 @@ int main(int argc, char **argv) {
     std::cout << "Outputting to: " << argv[3] << std::endl;
     size_t bin_size = (size_t)atoi(argv[4]);
     std::cout << "Bin size: " << bin_size << std::endl;
+    
+    uint64_t min_counter = (uint64_t)atoi(argv[5]);
+    uint64_t max_counter = (uint64_t)atoi(argv[6]);
+    std::cout << "Taking kmers of range " << min_counter << " to " << max_counter << std::endl;
     
     /* Construct histogram */
     // hist0 is total kmers; hist[1] is total distinct kmers (F0); from 2, hist[i] represents number of kmers with freq=i-1
@@ -53,7 +57,8 @@ int main(int argc, char **argv) {
         
         for(size_t i = 0; i < seq->seq.l; i += bin_size) {
             uint64_t current_bin_total = 0;
-            uint64_t count_0 = 0;
+            uint64_t count_below_min = 0;
+            uint64_t count_above_max = 0;
             uint64_t count_n_kmer = 0;
             
             size_t max_idx = i + bin_size;
@@ -61,7 +66,6 @@ int main(int argc, char **argv) {
             int32_t last_n_pos = -1;
             
             std::vector<uint64_t> current_frequencies;
-            std::vector<uint64_t> current_frequencies_excluding_0;
             
             if(max_idx >= seq->seq.l) max_idx = seq->seq.l;
             for(size_t j = i; j < max_idx; j++) {
@@ -70,18 +74,21 @@ int main(int argc, char **argv) {
                     kmer_object->from_string_impl(current_sequence.begin() + j, k);
                     uint64_t counter;
                     if(kmc_database.CheckKmer(*kmer_object, counter)) {
-                        current_bin_total += counter;
-                        current_frequencies.push_back(counter);
-                        current_frequencies_excluding_0.push_back(counter);
+                        if(counter >= min_counter && counter <= max_counter) {
+                            current_bin_total += counter;
+                            current_frequencies.push_back(counter);
+                        } else if(counter < min_counter) count_below_min++;
+                        else count_above_max++;
                     } else {
                         kmer_object->reverse();
                         if(kmc_database.CheckKmer(*kmer_object, counter)) {
-                            current_bin_total += counter;
-                            current_frequencies.push_back(counter);
-                            current_frequencies_excluding_0.push_back(counter);
+                            if(counter >= min_counter && counter <= max_counter) {
+                                current_bin_total += counter;
+                                current_frequencies.push_back(counter);
+                            } else if(counter < min_counter) count_below_min++;
+                            else count_above_max++;
                         }  else {
-                            count_0++;
-                            current_frequencies.push_back(0);
+                            if(min_counter == 0) current_frequencies.push_back(0);
                         }
                     }
                 }
@@ -116,40 +123,10 @@ int main(int argc, char **argv) {
                 if(current_frequencies.size() & 1) median = current_frequencies[current_frequencies.size() / 2];
                 else if(current_frequencies.size() > 0) median = (current_frequencies[current_frequencies.size() / 2] + current_frequencies[current_frequencies.size() / 2 - 1]) / 2;
                 
-                if(current_frequencies_excluding_0.size() == 0) output << seq->name.s << "\t" << i << "\t" << max_idx << "\t" << current_bin_total << "\t" << current_frequencies.size() << "\t" << double_t(current_bin_total)/double_t(current_frequencies.size()) << "\t" << mode << "\t" << median << "\t" << count_0 << "\t" << 0 << "\t" << -1 << "\t" << -1 << "\t" << -1 << "\t" << count_n_kmer << "\n";
-                else {
-                    std::sort(current_frequencies_excluding_0.begin(), current_frequencies_excluding_0.end());
-                
-                    current_number = current_frequencies_excluding_0[0];
-                    current_count = 1;
-                    current_mode = current_number;
-                    current_highest = current_count;
-                    for(size_t j = 1; j < current_frequencies_excluding_0.size(); j++) {
-                        if(current_frequencies_excluding_0[j] == current_number) current_count++;
-                        else {
-                            if(current_count > current_highest) {
-                                current_highest = current_count;
-                                current_mode = current_number;
-                            }
-                            current_number = current_frequencies_excluding_0[j];
-                            current_count = 1;
-                        }
-                    }
-                    if(current_count > current_highest) {
-                        current_highest = current_count;
-                        current_mode = current_number;
-                    }
-                    
-                    uint64_t mode_excluding_0 = current_mode;
-                    uint64_t median_excluding_0;
-                    if(current_frequencies_excluding_0.size() & 1) median_excluding_0 = current_frequencies_excluding_0[current_frequencies_excluding_0.size() / 2];
-                    else if(current_frequencies_excluding_0.size() > 0) median_excluding_0 = (current_frequencies_excluding_0[current_frequencies_excluding_0.size() / 2] + current_frequencies_excluding_0[current_frequencies_excluding_0.size() / 2 - 1]) / 2;
-                    
-                    output << seq->name.s << "\t" << i << "\t" << max_idx << "\t" << current_bin_total << "\t" << current_frequencies.size() << "\t" << double_t(current_bin_total)/double_t(current_frequencies.size()) << "\t" << mode << "\t" << median << "\t" << count_0 << "\t" << current_frequencies_excluding_0.size() << "\t" << double_t(current_bin_total)/double_t(current_frequencies_excluding_0.size()) << "\t" << mode_excluding_0 << "\t" << median_excluding_0 << "\t" << count_n_kmer << "\n";
-                }
+                output << seq->name.s << "\t" << i << "\t" << max_idx << "\t" << current_bin_total << "\t" << current_frequencies.size() << "\t" << double_t(current_bin_total)/double_t(current_frequencies.size()) << "\t" << mode << "\t" << median << "\t" << count_n_kmer << "\t" << count_below_min << "\t" << count_above_max << "\n";
             } else {
                 uint64_t num_bases = max_idx - i;
-                output << seq->name.s << "\t" << i << "\t" << max_idx << "\t" << 0 << "\t" << 0 << "\t" << -1 << "\t" << -1 << "\t" << -1 << "\t" << count_0 << "\t" << 0 << "\t" << -1 << "\t" << -1 << "\t" << -1 << "\t" << count_n_kmer << "\n";
+                output << seq->name.s << "\t" << i << "\t" << max_idx << "\t" << 0 << "\t" << 0 << "\t" << -1 << "\t" << -1 << "\t" << -1 << "\t" << count_n_kmer << "\t" << count_below_min << "\t" << count_above_max << "\n";
             }
         }
     }
