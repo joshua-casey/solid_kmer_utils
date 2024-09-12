@@ -5,35 +5,160 @@
 #include <string>
 #include <algorithm>
 #include <zlib.h>
+#include <getopt.h>
 #include <htslib/kseq.h>
 #include <htslib/kstring.h>
 KSEQ_INIT(gzFile, gzread)
 
-int main(int argc, char **argv) {   
-    if(argc < 8) {
-        std::cerr << "Usage: " << argv[0] << " <KMC database path> <Reference path> <Output file> <Bin size> <min kmer count> <max kmer count> <Histogram output file>" << std::endl;
-        return 1;
+void usage() {
+    std::cout << " Usage: ./reference_kmer_counter <args>\n";
+    std::cout << " Mandatory args:\n";
+    std::cout << "  -i, --kmc_db <str> \t \t KMC database path (without pre/suf).\n";
+    std::cout << "  -r, --reference <str> \t \t The fasta file of the reference to scan (accepts gzipped file).\n";
+    std::cout << " Optional args:\n";
+    std::cout << "  -o, --output_prefix <str> \t Output prefix: output will be PREFIXkmer_count.tsv and PREFIXkmer_histo.tsv [DEAFULT: ""]\n";
+    std::cout << "  -b, --bin_size <int> \t \t Bin size [DEAFULT: 10000]\n";
+    std::cout << "  -s, --bin_shift <int> \t Bin sliding window shift [DEAFULT: 10000]\n";
+    std::cout << "  -m, --min_kmer <int> \t \t Min kmer count [DEAFULT: 2]\n";
+    std::cout << "  -M, --max_kmer <int> \t \t Max kmer count [DEAFULT: 200]\n";
+    std::cout << "  -h, --help \t \t \t Prints the usage.\n";
+}
+
+struct InputFlags {
+    std::string kmc_database_path;
+    std::string reference_path;
+    std::string statistic_output_path;
+    std::string histogram_output_path;
+    size_t bin_size;
+    size_t bin_shift_size;
+    uint64_t min_kmer_counter;
+    uint64_t max_kmer_counter;
+};
+
+static struct option long_options[] = {
+    {"kmc_db", required_argument, NULL, 'i'},
+    {"reference", required_argument, NULL, 'r'},
+    {"output_prefix", required_argument, NULL, 'o'},
+    {"bin_size", required_argument, NULL, 'b'},
+    {"bin_shift", required_argument, NULL, 's'},
+    {"min_kmer", required_argument, NULL, 'm'},
+    {"max_kmer", required_argument, NULL, 'M'},
+    {"help", no_argument, NULL, 'h'},
+    {NULL, 0, NULL, 0}};
+    
+void decodeFlags(int argc, char *argv[], InputFlags &flags) {
+    int args = 0;
+    int opt;
+    int given_k = 0;
+    
+    std::string output_prefix = "";
+    
+    flags.bin_size = 10000;
+    flags.bin_shift_size = 10000;
+    
+    flags.min_kmer_counter = 2;
+    flags.max_kmer_counter = 200;
+    
+    bool is_kmc_path = false;
+    bool is_ref_path = false;
+    
+    /* initialisation */
+    while ((opt = getopt_long(argc, argv, "i:r:o:b:s:m:M:h", long_options, nullptr)) != -1) {
+        switch (opt) {
+            case 'i':
+                flags.kmc_database_path = optarg;
+                is_kmc_path = true;
+                args++;
+                break;
+            case 'r':
+                flags.reference_path = optarg;
+                is_ref_path = true;
+                args++;
+                break;
+            case 'o':
+                output_prefix = std::string(optarg);
+                args++;
+                break;
+            case 'b':
+                flags.bin_size = (size_t)atoi(optarg);
+                args++;
+                break;
+            case 's':
+                flags.bin_shift_size = (size_t)atoi(optarg);
+                args++;
+                break;
+            case 'm':
+                flags.min_kmer_counter = (size_t)atoi(optarg);
+                args++;
+                break;
+            case 'M':
+                flags.max_kmer_counter = (size_t)atoi(optarg);
+                args++;
+                break;
+            case 'h':
+                usage();
+                exit(0);
+            default:
+                std::cerr << "Unknown option " << opt << std::endl;
+                usage();
+                exit(1);
+        }
     }
     
-    std::cout << "Reading database from: " << argv[1] << std::endl;
+    
+    
+    if(!is_kmc_path) {
+        std::cerr << "Argument --kmc_db or -i needed." << std::endl;
+        exit(1);
+    }
+    if(!is_ref_path) {
+        std::cerr << "Argument --reference or -r needed." << std::endl;
+        exit(1);
+    }
+    
+    
+    flags.statistic_output_path = output_prefix + "kmer_count.tsv";
+    flags.histogram_output_path = output_prefix + "kmer_histo.tsv";
+    
+    
+    std::string kmc_database_path;
+    std::string reference_path;
+    std::string statistic_output_path;
+    std::string histogram_output_path;
+    size_t bin_size;
+    size_t bin_shift_size;
+    uint64_t min_kmer_counter;
+    uint64_t max_kmer_counter;
+    
+    std::cout << "KMC database path: " << flags.kmc_database_path << std::endl;
+    std::cout << "Reference path: " << flags.reference_path << std::endl;
+    
+    std::cout << "Statistics output path: " << flags.statistic_output_path << std::endl;
+    std::cout << "Histogram output path: " << flags.histogram_output_path << std::endl;
+    
+    std::cout << "Bin size: " << flags.bin_size << std::endl;
+    std::cout << "Bin shift size: " << flags.bin_shift_size << std::endl;
+    
+    std::cout << "Min kmer counter: " << flags.min_kmer_counter << std::endl;
+    std::cout << "Max kmer counter: " << flags.max_kmer_counter << std::endl;
+}
+
+int main(int argc, char **argv) {
+    InputFlags flags;
+    decodeFlags(argc, argv, flags);
+    
+    std::cout << "Reading database from: " << flags.kmc_database_path << std::endl;
     CKMCFile kmc_database;
-    if(!kmc_database.OpenForRA(argv[1])) {
+    if(!kmc_database.OpenForRA(flags.kmc_database_path)) {
         std::cerr << "Failed to open KMC database." << std::endl;
         return 1;
     }
+    size_t bin_size = flags.bin_size;
+    size_t bin_shift_size = flags.bin_shift_size;
     
-    std::cout << "Reading sequences from: " << argv[2] << std::endl;
-    std::cout << "Outputting to: " << argv[3] << std::endl;
-    std::cout << "Outputting histogram to: " << argv[7] << std::endl;
-    size_t bin_size = (size_t)atoi(argv[4]);
-    std::cout << "Bin size: " << bin_size << std::endl;
+    uint64_t min_counter = flags.min_kmer_counter;
+    uint64_t max_counter = flags.max_kmer_counter;
     
-    uint64_t min_counter = (uint64_t)atoi(argv[5]);
-    uint64_t max_counter = (uint64_t)atoi(argv[6]);
-    std::cout << "Taking kmers of range " << min_counter << " to " << max_counter << std::endl;
-    
-    /* Construct histogram */
-    // hist0 is total kmers; hist[1] is total distinct kmers (F0); from 2, hist[i] represents number of kmers with freq=i-1
     CKMCFileInfo kmc_info;
     kmc_database.Info(kmc_info);
     uint32_t k = kmc_info.kmer_length;
@@ -42,24 +167,23 @@ int main(int argc, char **argv) {
     
     CKmerAPI * kmer_object = new CKmerAPI(kmc_info.kmer_length);
     
-    gzFile fp = gzopen(argv[2], "r");
+    gzFile fp = gzopen(flags.reference_path.c_str(), "r");
     kseq_t *seq;
     seq = kseq_init(fp);
     int l;
     
     std::ofstream output;
-    output.open(argv[3]);
+    output.open(flags.statistic_output_path);
     
     std::ofstream histogram_output;
-    histogram_output.open(argv[7]);
-    
+    histogram_output.open(flags.histogram_output_path);
     
     while((l = kseq_read(seq)) >= 0) {
         std::cerr << "Processing: " << seq->name.s << std::endl;
         std::string current_sequence(seq->seq.s);
         
         
-        for(size_t i = 0; i < seq->seq.l; i += bin_size) {
+        for(size_t i = 0; i < seq->seq.l; i += bin_shift_size) {
             uint64_t current_bin_total = 0;
             uint64_t count_below_min = 0;
             uint64_t count_above_max = 0;

@@ -20,13 +20,26 @@ This will output two files `kmc_result.res.kmc_pre` and `kmc_result.res.kmc_suf`
 
 Then, run the compiled program
 ```
-./reference_kmer_counter <kmc database path> <sequence file to scan> <output tsv file> <bin size> <min kmer count> <max kmer count> <histogram output file>
+./reference_kmer_counter -i <kmc database> -r <reference file> [optional arguments]
+```
+The list of arguments are as follows:
+```
+Mandatory args:
+  -i, --kmc_db <str> 	 	 KMC database path (without pre/suf).
+  -r, --reference <str> 	 The fasta file of the reference to scan (accepts gzipped file).
+Optional args:
+  -o, --output_prefix <str>  Output prefix: output will be PREFIXkmer_count.tsv and PREFIXkmer_histo.tsv [DEAFULT: ]
+  -b, --bin_size <int> 	 	 Bin size [DEAFULT: 10000]
+  -s, --bin_shift <int> 	 Bin sliding window shift [DEAFULT: 10000]
+  -m, --min_kmer <int> 	 	 Min kmer count [DEAFULT: 2]
+  -M, --max_kmer <int> 	 	 Max kmer count [DEAFULT: 200]
+  -h, --help 	 	 	     Prints the usage.
 ```
 Note that minimum, maximum kmer count, and the statistics will obey the KMC counters, i.e. set -ci, -cs, and -cx accordingly.
 
 For example:
 ```
-./reference_kmer_counter kmc_result.res chm13.draft_v1.1.fasta test_out.tsv 10000 2 200 hist_out.tsv
+./reference_kmer_counter -i kmc_result.res -r chm13.draft_v1.1.fasta
 ```
 
 The output `test_out.tsv` will be of the format:
